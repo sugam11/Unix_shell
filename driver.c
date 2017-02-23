@@ -16,61 +16,72 @@ int main(){
     pid_t id;
     int process_no = 0,status;
     const char delim[] = " \t\r\n\v\f";
-    const char redirect_delim[] = ">><";
-    
     while(1){
         int j = 0;
         gets(command[command_counter]);
         //printf("%s\n%s\n",command[command_counter],copy);
         
-//Detecting redirection operators
-        int flag = 0;
-        for(j = 0; j < strlen(command[command_counter]); j++){
+//Detecting operators
+        short op1,op2,op3,op4,op5,op6 = 0;                  // '>','>>','<','|','||','|||' operator
+        for (j = 0; j < strlen(command[command_counter]); j++) {
             if(command[command_counter][j] == '<'){
-                flag=1;
-                printf("%d",flag);
-                break;
+                op3 = 1;
+                command[command_counter][j] = ' ';
             }
             else if(command[command_counter][j] == '>'){
-                flag = 2;
+                op1 = 1;
+                command[command_counter][j] = ' ';
                 //printf("%d",flag);
-                if(command[command_counter][j+1] != NULL && command[command_counter][j+1] == '>'){
-                    flag = 3;
+                if(command[command_counter][j+1] != '\0' && command[command_counter][j+1] == '>'){
+                    op2 = 1;
+                    op1 = 0;
+                    j++;
+                    command[command_counter][j] = ' ';
                     //printf("%d",flag);
                 }
-                break;
+            }
+            else if(command[command_counter][j] == '|'){
+                op4 = 1;
+                command[command_counter][j] = ' ';
+                //printf("%d",flag);
+                if(command[command_counter][j+1] != '\0' && command[command_counter][j+1] == '|'){
+                    // Add error detection here if two files separated by comma are not written
+                    op5 = 1;
+                    op4 = 0;
+                    j++;
+                    command[command_counter][j] = ' ';
+                    //printf("%d",flag);
+                }
+                else if(command[command_counter][j+1] != '\0' && command[command_counter][j+1] == '|'){
+                    op6 = 1;
+                    op5 = 0;
+                    j++;
+                    command[command_counter][j] = ' ';
+                    //printf("%d",flag);
+                }
             }
         }
-//Redirection operator detection ends
+        
+        //printf("%d %d %d %d %d %d ",op1,op2,op3,op4,op5,op6);
+        
+//Operator detection ends
         
 //Command tokenization begins
         char *command_delim[100];
         int i = 0;
-        if(flag == 2 || flag == 3 || flag == 1){
-            command_delim[i]  = strtok(command,redirect_delim);
-            while(command_delim[i] != NULL){
-                printf("%s\n",command_delim[i]);
-                i++;
-                command_delim[i]=strtok(NULL,delim);
-            }
-        }
-        
         char *command_tokens[100];
-        i = 0;
-        if(flag == 2 || flag == 3 || flag == 1){
-            command_tokens[i]  = strtok(command_delim[0],delim);
-        }
-        else{
-            command_tokens[i]  = strtok(command,delim);
-        }
-        
+        command_tokens[i]  = strtok(command[command_counter],delim);
         while(command_tokens[i] != NULL){
+            //printf("%s\n",command_tokens[i]);
             i++;
             command_tokens[i]=strtok(NULL,delim);
-            
         }
 //Command tokenization ends
+        
+        
         int fd1;
+        
+        
         if(flag != 0){
             
             char file_name[100];
