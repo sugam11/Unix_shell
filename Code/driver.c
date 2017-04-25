@@ -8,8 +8,11 @@
 #include <signal.h>
 #include"queue.h"
 
+int count=0;
+char buf[1000];
+
 void pr_exit (int status,int process_id);
-void child (int op1,char * file_name1, int op2, char *file_name2, int op3, char ** command_tokens,int p[],int q[]);
+int child (int op1,char * file_name1, int op2, char *file_name2, int op3, char ** command_tokens,int p[],int q[],int r[]);
 void sig_comm();
 static void sig_quit(int signo);
 static void sig_int(int signo);
@@ -34,7 +37,7 @@ int main(){
     const char delim[] = " \t\r\n\v\f";
     
     while(1){
-        
+        int children = 0;
 /*        sigset_t newmask, oldmask, pendmask;*/
 /*        sigemptyset(&newmask);*/
 /*        sigaddset(&newmask, SIGQUIT);*/
@@ -44,13 +47,15 @@ int main(){
 /*            printf("SIG_BLOCK error");*/
         int n=0;
         char input[100];
-        //printf("\nbefore gets\n");
+       // printf("\nbefore gets\n");
         fgets(input,100,stdin);
         input[strlen(input)-1] = '\0';
-        Enqueue(Q,input);
-        int p[2],q[2];
+        //Enqueue(Q,input);
+        int p[2],q[2],r[2],s[2];
         pipe(p);
         pipe(q);
+        pipe(r);
+        pipe(s);
         //printQ(Q);
 
         /* critical section starting*/
@@ -113,8 +118,8 @@ int main(){
         }*/
         
 //Operator detection ends
-        int op_num = j,op_counter = 0,com_num = k,op_pipe=0,op3=0;
-        i=0;//op3->'take input from pipe'
+        int op_num = j,op_counter = 0,com_num = k,op_pipe=0,op3=0,pipe_flag=0,char_read=0,char_write,id;//op3->'take input from pipe'
+        i=0;
         //      Command tokenization begins
         int token_no = 0;
         char *command_tokens[100];
@@ -128,24 +133,60 @@ int main(){
         }
 //      Command tokenization ends
         int flag=0;
+        count =0;
+        memset(buf,0,sizeof(buf));
+        
 	while(op_pipe!=-1){
 		close(p[0]);
 		dup2(q[0],p[0]);
-		close(p[0]);
-		dup2(q[0],p[0]);
+		close(p[1]);
+		dup2(q[1],p[1]);
 		pipe(q);
-		
+		pipe(r);
 		if(flag==1){
 			op3=1;
 			i = op_pipe+1;
+			id=fork();
+			//printf("\n\nid=%d\n",id);
+			if(id==0){
+				if(count>1){
+					char_read = read(p[0],buf,1000);
+            		buf[char_read+1]='\0';
+            	}
+            	//printf("buf inside if -> %s",buf);
+            	char_write = write(r[1],buf,char_read);
+            	char_write = write(s[1],buf,char_read);
+            	close(r[1]);
+            	close(s[1]);
+            	//printf("write concluded\n,char_write = %d\n",char_write);
+            	exit(0);
+            }
+            else if(id>0){
+            	id = wait (&status);
+            	//printf("parent process\n");
+            	
+            	//printf("buf in parent -> %s",buf);
+            	if(count!=1){
+            		char_read = read(s[0],buf,1000);
+            		//printf("Inside if\n\n\n");
+            		close(r[1]);
+            		close(p[0]);
+					dup2(r[0],p[0]);
+					close(p[1]);
+					dup2(r[1],p[1]);
+					
+				}
+				count=0;
+				//printf("parent executed");
+            }
 		}
 		
         //printf("%d",op_num);
         op_pipe=-1;
         if(op_num==0)
-        	child(0,NULL,0,NULL,op3,command_tokens,p,q);
+        	children = child(0,NULL,0,NULL,op3,command_tokens,p,q,r);
         else{
-        	int j=0,op1=0,op2=0,op1i=0,op2i=0;			//op1-> '<',op2-> 1-'>',2-'>>',3->'|'
+        	int j=0,op1=0,op2=0,op1i=0,op2i=0,op_comma=0;			//op1-> '<',op2-> 1-'>',2-'>>',3->'|'
         	while(i<op_num){
         		if(op[i][j]=='<'){
         			op1=1;
@@ -160,12 +201,22 @@ int main(){
         		}
         		else if(op[i][j]=='|'){
         			op2=3;
+        			pipe_flag=1;
         			op_pipe = i;
+        			if(op[i][j+1]=='|'){
+        				if(op[i][j+2]=='|')
+        					count = 3;
+        				else
+        					count=2;
+        			}
+        			else
+        				count=1;
         			break;
         		}
         		else if(op[i][j]==','){
         			op3=1;
         			op_pipe=i;
+        			//printf("\n*****************op_pipe=%d**********\n",op_pipe);
         			break;
         		}
         			
@@ -182,10 +233,10 @@ int main(){
         	else
         		file_name2 = NULL;
         	
-        	printf("op1=%d,op2=%d,op3=%d,op_pipe=%d,file1=%s,file2=%s\n",op1,op2,op3,op_pipe,file_name1,file_name2);	
-        	child(op1,file_name1,op2,file_name2,op3,command_tokens,p,q);
+        	//printf("op1=%d,op2=%d,op3=%d,op_pipe=%d,file1=%s,file2=%s\n,count=%d",op1,op2,op3,op_pipe,file_name1,file_name2,count);	
+        	children = child(op1,file_name1,op2,file_name2,op3,command_tokens,p,q,r);
         	}      
-        printf("\n\nstr=%s:end of str\n\n",input);
+        //printf("\n\nstr=%s:end of str\n\n",input);
         
 /*        if (sigprocmask(SIG_SETMASK, &oldmask, NULL) < 0)*/
 /*            printf("SIG_SETMASK error");*/
@@ -202,25 +253,53 @@ int main(){
 //      Command tokenization ends
 		flag=1;
 	}
+	//printf("aaja\n");	
+	//printQ(Q);
+	//printf("1\n");	
+	Enqueue(Q,input,children);
+	//printQ(Q);
+	//printf("2\n");
     }
 }
 
 
-void child(int op1,char *file_name1,int op2, char *file_name2, int op3, char ** command_tokens,int p[],int q[]){
+int child(int op1,char *file_name1,int op2, char *file_name2, int op3, char ** command_tokens,int p[],int q[],int r[]){
     pid_t pid,id;
     int status,fd1;
+
+if(op2 == 1||op2==2){
+				printf("Fd of the file : 1, Remapped Fd : 1\n");
+				
+            }
+            else if(op2==3){
+				printf("Output pipe Fd : %d, Remapped Fd : 1\n", q[1]);
+            }
+            
+            if (op1 == 1){
+				printf("Fd of the file : 0, Remapped Fd : 0\n");
+            }
+            
+            if (op3==1){
+            	printf("Input pipe Fd : %d, Remapped Fd : 0\n", p[0]);
+            }
+	
     if ((pid = fork ()) < 0)
-        perror ("fork error");
+{perror ("fork error");
+return 1;}
+        //perror ("fork error");
     else if (pid == 0)
         {
-            printf ("Executing %s\n", command_tokens[0]);
+           // printf ("Executing %s\n", command_tokens[0]);
             if(op2 == 1){
+				//printf("Fd of the file : %d, Remapped Fd : %d\n",pid,pid);
             	close(1);
             	fd1 = open(file_name2,O_CREAT|O_WRONLY,S_IRWXU);
+				
             }
             else if (op2 == 2){
                 close(1);
                 fd1 = open(file_name2,O_CREAT|O_APPEND|O_WRONLY,S_IRWXU);
+				//printf("Fd of the file : %d, Remapped Fd : %d\n",fd1,fd1);
             }
             else if(op2==3){
             	close(1);
@@ -232,19 +311,21 @@ void child(int op1,char *file_name1,int op2, char *file_name2, int op3, char ** 
             if (op1 == 1){
                 close(0);
                 fd1 = open(file_name1,O_RDONLY);
+				//printf("Fd of the file : %d, Remapped Fd : %d\n",fd1,fd1);
             }
             
             if (op3==1){
-            	printf("op3 entered\n");
+            	//printf("op3 entered\n");
             	close(0);
             	dup(p[0]);
-            	if(op2!=3)
-            		close(p[1]);
+            	//printf("op3 loop concluded\n");
+            	
             }
             //printf("before execvp\n");
-            printf("command tokens = %s\n",command_tokens[0]);
+           // printf("command tokens = %s\n",command_tokens[0]);
             execvp(command_tokens[0],command_tokens);
             perror ("error in execvp");
+			return 1;
         }
     else if (pid > 0)
         {
@@ -257,7 +338,11 @@ void child(int op1,char *file_name1,int op2, char *file_name2, int op3, char ** 
           /*  if (op3==1){
             	close(p[0]);
             }*/
-            pr_exit (status,id);
+			pr_exit (status,id);
+			if (WIFEXITED (status))
+        		return 0;
+    		else
+            	return 1;
         }
 
 }

@@ -1,0 +1,14 @@
+﻿ls
+ls -all
+ps aux
+ls|wc|wc|wc
+ls > abc.txt
+sort < def.txt
+wc < abc.txt
+ls >> abc.txt
+ls -l |||grep driver.c,wc, grep queue.c
+ls -l ||grep driver.c, wc
+wrong command
+wc < abc.txt > def.txt
+ls -l || grep ^-, grep ^d
+
